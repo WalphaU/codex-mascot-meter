@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+*.log
+.env
+.env.*
+coverage/
+*.jsonl
+.codex/
+.DS_Store

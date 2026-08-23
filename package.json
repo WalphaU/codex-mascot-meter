@@ -1,0 +1,18 @@
+{
+  "name": "codex-mascot-meter",
+  "version": "0.2.6",
+  "private": true,
+  "license": "MIT",
+  "description": "A transparent Windows desktop mascot that monitors local Codex task progress and usage.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "preview:capture": "electron scripts/capture-preview.cjs",
+    "slim": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/slim-project.ps1",
+    "test": "node --test",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/codex-monitor-v2.cjs && node --check src/renderer-v2.js"
+  },
+  "devDependencies": {
+    "electron": "^38.1.0"
+  }
+}

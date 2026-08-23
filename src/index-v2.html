@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Codex 余额助手</title>
+    <link rel="stylesheet" href="./styles-v2.css" />
+  </head>
+  <body>
+    <main class="widget" data-state="idle" data-mode="compact" aria-label="Codex 项目桌面宠物">
+      <div class="detail-surface" aria-hidden="true"></div>
+      <div class="aura aura-one" aria-hidden="true"></div>
+      <div class="aura aura-two" aria-hidden="true"></div>
+
+      <div class="compact-toolbar">
+        <span class="compact-drag" aria-label="拖动窗口"><i></i><i></i><i></i></span>
+        <div class="compact-toolbar-actions">
+          <button id="compactModeButton" class="round-button" type="button" aria-label="切换到详细面板">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="7" height="14" rx="2"></rect><rect x="14" y="5" width="6" height="6" rx="2"></rect><path d="M15 16h5M17.5 13.5v5"></path></svg>
+          </button>
+          <button id="compactCloseButton" class="round-button close-button" type="button" aria-label="关闭窗口">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <button id="petButton" class="mascot-shell" type="button" aria-label="打开 codex 项目详细面板">
+        <span class="state-halo" aria-hidden="true"></span>
+        <img class="mascot mascot-idle" src="./assets/mascot-idle.webp" alt="" />
+        <img class="mascot mascot-working" src="./assets/mascot-working.webp" alt="" />
+        <img class="mascot mascot-low" src="./assets/mascot-low.webp" alt="" />
+        <img class="mascot mascot-done" src="./assets/mascot-done.webp" alt="" />
+      </button>
+
+      <section class="compact-hud" aria-live="polite">
+        <div class="compact-project-row">
+          <span class="live-dot" aria-hidden="true"></span>
+          <strong id="compactProjectName">正在连接…</strong>
+          <span id="compactState">待机</span>
+        </div>
+        <div class="compact-meter">
+          <div class="compact-meter-label"><span id="compactTaskLabel">任务进度</span><strong id="compactTaskValue">—</strong></div>
+          <div class="bar-track"><span id="compactTaskBar" class="task-bar"></span></div>
+        </div>
+        <div class="compact-meter quota-meter">
+          <div class="compact-meter-label"><span id="compactQuotaLabel">用量窗口余额</span><strong id="compactQuotaValue">—</strong></div>
+          <div class="bar-track"><span id="compactQuotaBar" class="quota-bar"></span></div>
+        </div>
+      </section>
+
+      <section class="detail-panel" aria-label="Codex 项目详细数据">
+        <header class="titlebar">
+          <div class="drag-region">
+            <span class="live-dot" aria-hidden="true"></span>
+            <div class="project-copy">
+              <span class="eyebrow">CURRENT CODEX PROJECT</span>
+              <strong id="projectName" title="">正在连接…</strong>
+            </div>
+          </div>
+          <nav class="window-actions" aria-label="窗口控制">
+            <button id="modeButton" class="icon-button mode-button" type="button" aria-label="切换到桌宠模式">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="7" height="14" rx="2"></rect><rect x="14" y="5" width="6" height="6" rx="2"></rect><path d="m14.5 16 2.5 2.5 3.5-4"></path></svg>
+            </button>
+            <button id="minimizeButton" class="icon-button" type="button" aria-label="最小化窗口">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"></path></svg>
+            </button>
+            <button id="closeButton" class="icon-button close-button" type="button" aria-label="关闭窗口">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"></path></svg>
+            </button>
+          </nav>
+        </header>
+
+        <section class="hero" aria-live="polite">
+          <div class="quota-ring" role="img" aria-labelledby="quotaTitle quotaValue">
+            <svg class="ring-svg" viewBox="0 0 160 160" aria-hidden="true">
+              <circle class="ring-track" cx="80" cy="80" r="68"></circle>
+              <circle id="quotaArc" class="ring-value" cx="80" cy="80" r="68"></circle>
+            </svg>
+            <div class="quota-center">
+              <span id="quotaTitle">窗口余额</span>
+              <strong id="quotaValue">--%</strong>
+              <small id="quotaWindowLabel">等待数据</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="status-strip">
+          <div class="status-copy">
+            <span id="stateLabel" class="status-label">待机中</span>
+            <strong id="activeStep">等待 Codex 开始任务</strong>
+          </div>
+          <span id="progressPercent" class="progress-percent">—</span>
+          <div class="progress-track" aria-hidden="true"><span id="progressBar"></span></div>
+        </section>
+
+        <section class="metric-grid" aria-label="项目用量统计">
+          <article class="metric-card primary-metric"><span>项目总消耗</span><strong id="totalTokens">—</strong><small id="sessionCount">Codex 项目累计</small></article>
+          <article class="metric-card"><span>当前任务实际消耗</span><strong id="currentTokens">—</strong><small>当前会话 tokens</small></article>
+          <article class="metric-card"><span>缓存命中</span><strong id="cacheRate">—</strong><small>项目输入 token</small></article>
+        </section>
+
+        <section class="pulse-card" aria-labelledby="pulseTitle">
+          <div class="card-heading">
+            <div>
+              <span class="eyebrow">PROJECT HISTORY</span>
+              <strong id="pulseTitle">项目 token 分段消耗</strong>
+              <small id="historyRange">正在读取历史日志…</small>
+            </div>
+            <div class="chart-heading-actions">
+              <button id="chartBackButton" class="chart-back-button" type="button" aria-label="返回每日消耗视图" hidden>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 5-5 5 5 5"></path></svg><span>按天</span>
+              </button>
+              <span id="deltaBadge" class="delta-badge">+0</span>
+            </div>
+          </div>
+          <div class="chart-legend"><span><i></i><b id="chartLegendLabel">每日总消耗</b></span><span>单位：tokens</span></div>
+          <div class="chart-stage">
+            <div id="chartViewport" class="chart-viewport" tabindex="0" aria-label="可横向滚动的历史 token 柱状图">
+              <svg id="pulseChart" class="pulse-chart" viewBox="0 0 352 90" role="img" aria-label="当前项目各历史日志区间的新增 token 柱状图">
+                <g id="chartGrid" class="chart-grid"></g>
+                <g id="chartXAxis" class="chart-axis chart-x-axis"></g>
+                <g id="chartBars" class="chart-bars"></g>
+                <g id="chartYAxis" class="chart-axis chart-y-axis"></g>
+              </svg>
+            </div>
+            <div id="chartTooltip" class="chart-tooltip" role="status" aria-live="polite" hidden>
+              <span id="tooltipTime">—</span><strong id="tooltipValue">—</strong><small id="tooltipDelta">—</small>
+            </div>
+          </div>
+          <div class="history-scroll-control">
+            <button id="scrollLeftButton" type="button" aria-label="向左查看更早的消耗数据">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 5-5 5 5 5"></path></svg>
+            </button>
+            <input id="historySlider" type="range" min="0" max="1000" value="1000" step="1" aria-label="横向滑动查看过去至当前的 token 消耗" />
+            <button id="scrollRightButton" type="button" aria-label="向右查看更新的消耗数据">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 5 5 5-5 5"></path></svg>
+            </button>
+          </div>
+          <div class="chart-kpis" aria-label="趋势摘要">
+            <div><span>历史起点</span><strong id="historyStartValue">—</strong></div>
+            <div><span>期间增加</span><strong id="historyAddedValue">—</strong></div>
+            <div><span>当前累计</span><strong id="historyCurrentValue">—</strong></div>
+          </div>
+          <div class="history-log-section">
+            <div class="history-log-heading"><span>最近项目日志</span><small id="historyLogCount">0 条</small></div>
+            <div id="historyLogList" class="history-log-list"></div>
+          </div>
+          <p id="chartSummary" class="sr-only">尚无历史趋势数据。</p>
+        </section>
+
+        <section class="meta-row">
+          <div><span>重置倒计时</span><strong id="resetCountdown">—</strong></div>
+          <div><span>数据口径</span><strong class="source-ok"><i aria-hidden="true"></i>账号额度 / 项目累计</strong></div>
+        </section>
+
+        <footer class="runtime-strip" aria-label="当前运行参数">
+          <div><span>模型</span><strong id="modelName">—</strong></div>
+          <div><span>推理强度</span><strong id="effortValue">—</strong></div>
+          <div><span>实时速度</span><strong id="speedValue">待机</strong></div>
+          <small id="lastUpdated">等待首次同步</small>
+        </footer>
+      </section>
+    </main>
+    <script src="./renderer-v2.js"></script>
+  </body>
+</html>

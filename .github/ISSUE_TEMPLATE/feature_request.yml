@@ -1,0 +1,28 @@
+name: 功能建议
+description: 提议新的桌宠、指标或交互能力
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决的问题
+      description: 请描述当前使用场景和痛点，而不只是功能名称。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 可接受的替代方案
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 数据边界
+      options:
+        - label: 该建议可以继续保持本地只读，不要求上传 Codex 日志或项目内容。
