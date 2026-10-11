@@ -9,5 +9,14 @@ contextBridge.exposeInMainWorld('codexMeter', {
   },
   minimize: () => ipcRenderer.send('window:minimize'),
   close: () => ipcRenderer.send('window:close'),
-  setMode: (mode) => ipcRenderer.send('window:set-mode', mode)
+  setMode: (mode) => ipcRenderer.send('window:set-mode', mode),
+  petTeleport: () => ipcRenderer.invoke('window:pet-teleport'),
+  petDragStart: (payload) => ipcRenderer.send('window:pet-drag-start', payload),
+  petDragMove: (payload) => ipcRenderer.send('window:pet-drag-move', payload),
+  petDragEnd: (payload) => ipcRenderer.send('window:pet-drag-end', payload),
+  onPetDragStopped: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('window:pet-drag-stopped', listener);
+    return () => ipcRenderer.removeListener('window:pet-drag-stopped', listener);
+  }
 });

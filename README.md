@@ -1,83 +1,62 @@
 <div align="center">
-  <img src="src/assets/app-icon.png" width="104" alt="Codex 余额助手图标" />
-  <h1>Codex 余额助手</h1>
-  <p><strong>把 Codex 的任务进度、Token 消耗与用量窗口，变成常驻桌面的二次元助手。</strong></p>
-  <p>
-    <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20x64-167d73?style=flat-square" />
-    <img alt="Electron" src="https://img.shields.io/badge/Electron-38-47848f?style=flat-square&logo=electron&logoColor=white" />
-    <img alt="Version" src="https://img.shields.io/badge/version-0.2.6-55d8bc?style=flat-square" />
-    <img alt="License" src="https://img.shields.io/badge/code%20license-MIT-5a8f86?style=flat-square" />
-    <img alt="Local first" src="https://img.shields.io/badge/data-local--only-173d3a?style=flat-square" />
-  </p>
-  <p>
-    <a href="#下载与使用">下载与使用</a> ·
-    <a href="#核心能力">核心能力</a> ·
-    <a href="#指标口径">指标口径</a> ·
-    <a href="#从源码运行">从源码运行</a>
-  </p>
+  <img src="src/assets/app-icon.png" width="104" alt="Codex 余额 Plus 图标" />
+  <h1>Codex 余额 Plus（社区版）</h1>
+  <p><strong>看看 Codex 还剩多少额度，也让桌面多一个会呼吸、会眨眼的小伙伴。</strong></p>
+  <p>Windows x64 · v0.4.0 · Electron 38 · 源码 MIT</p>
+  <p><a href="https://github.com/WalphaU/codex-mascot-meter/releases/latest">下载最新版</a> · <a href="CHANGELOG.md">与原版有什么不同</a> · <a href="#从源码运行">从源码运行</a></p>
 </div>
 
-> [!IMPORTANT]
-> 本项目是非官方社区工具，与 OpenAI 没有隶属、赞助或背书关系。Codex、ChatGPT、OpenAI 及其标识是其各自权利人的商标。
+这是原「Codex 余额助手」的升级版。它会跟随 Codex 当前选中的本地项目，显示任务进度、Token 消耗和账号用量窗口；想让桌面清爽一点时，也可以切成只显示人物的动态桌宠。
 
-## 一眼了解
+本项目是非官方社区工具，与 OpenAI 没有隶属、赞助或背书关系。
 
-Codex 余额助手是一款 Windows 透明桌面宠物。它以只读方式解析本机 Codex 状态与会话日志，跟随当前选中的项目，实时展示任务状态、计划进度、项目累计 Token、当前任务消耗、缓存命中、模型、推理强度、输出速度与用量窗口余额。
+## 相比原来的 v0.2.6
 
-<table>
-  <tr>
-    <td width="40%" align="center"><img src="artifacts/widget-compact-preview.png" alt="精简桌宠模式" /></td>
-    <td width="60%" align="center"><img src="artifacts/widget-detail-preview.png" alt="详细数据面板" /></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>精简桌宠</strong><br />人物、任务进度与窗口余额</td>
-    <td align="center"><strong>详细面板</strong><br />项目统计、分层图表与实时运行信息</td>
-  </tr>
-</table>
+- **新增动态桌宠。** 保留精简模式和详细面板，增加连续呼吸、眨眼、点击点头、拖拽挣扎和松手落地反馈。
+- **两种额度一起看。** 同时显示 5 小时和周额度，各有重置倒计时；任一窗口剩余不超过 10% 时提醒，原版为主窗口不超过 20%。
+- **面板更省地方。** 详细窗口从 432×800 缩到 432×680 DIP，高度减少 15%。移除「最近项目日志」列表，保留字号、统计、趋势图和运行信息。
+- **显示和切换更稳。** 补全模型与推理强度读取；低额度状态下继续显示任务进度；从屏幕边缘展开时校正面板位置。
 
-## 核心能力
+这里直接对比原仓库和当前版本，中间开发记录不展开。完整说明见 [更新日志](CHANGELOG.md)。
 
-- **双形态桌宠**：点击人物在精简版与详细版之间切换，带平滑窗口过渡动画。
-- **真实任务状态**：严格跟随 `task_started → working → task_complete`，不会用旧计划伪造完成状态。
-- **四种人物状态**：待机、工作、低余额、完成；完成态 15 秒后自动回退，点击人物可立即回退。
-- **项目自动跟随**：读取 Codex 当前选中的本地项目，切换项目时同步更新名称和统计。
-- **Token 统计**：区分当前任务累计与整个项目累计，并聚合项目子会话。
-- **两层消耗图表**：外层按天汇总；点击日期进入当日分时明细，支持滑块、箭头和固定纵轴。
-- **运行信息**：显示模型、推理强度、实时输出速度、缓存命中与窗口重置倒计时。
-- **本地优先**：不上传提示词、项目内容或 Codex 日志，不修改账号、配置和会话文件。
+## 三种显示模式
+
+| 精简桌宠 | 详细面板 | 动态桌宠 |
+|---|---|---|
+| ![精简桌宠](artifacts/widget-compact-preview.png) | ![详细面板](artifacts/widget-detail-preview.png) | ![动态桌宠](artifacts/widget-dynamic-preview.png) |
+| 项目、进度和两种额度 | Token、趋势图和运行信息 | 待机、点击、拖拽和落地 |
+
+截图使用演示数据。
+
+点击精简模式左上角的人物按钮进入动态桌宠；点击人物或详细按钮打开数据面板。在动态模式下，把鼠标移到人物附近即可看到返回按钮。人物与返回按钮之间留有悬停区域，移动过去时按钮不会立刻消失。
+
+动态桌宠支持鼠标拖动，也可以聚焦后按 Enter 或空格触发互动。连续点击会合并为一次回应，拖拽可以立即打断动作。当前版本安静待机，不会定时随机走动、睡觉或传送。
 
 ## 下载与使用
 
-1. 在仓库的 **Releases** 页面下载 `Codex-Meter-v0.2.6-windows-x64.zip`。
-2. 完整解压 ZIP，保留目录中的 `resources`、DLL、PAK 等文件。
-3. 双击 `Codex余额助手.exe`。
-4. 打开 Codex 并选择一个本地项目，桌宠会自动读取对应状态。
+1. 在 [Releases](https://github.com/WalphaU/codex-mascot-meter/releases/latest) 下载 `Codex-Meter-Plus-v0.4.0-windows-x64.zip`。
+2. 完整解压，保留 resources、DLL、PAK 等文件，不要只移动 EXE。
+3. 双击 `Codex余额Plus.exe`，然后在 Codex 中选择一个本地项目。
 
-系统要求：Windows 10/11 x64，且本机已经使用过 Codex。
+从旧版升级时，先退出旧桌宠，再把新版解压到新文件夹运行。旧目录可以保留，方便需要时切回去。
 
-> [!NOTE]
-> 当前 EXE 未进行商业代码签名，Windows SmartScreen 可能显示“未知发布者”。确认下载来源后，可选择“更多信息 → 仍要运行”。
+系统要求：Windows 10/11 x64，且本机已经使用过 Codex。EXE 尚未进行商业代码签名；Windows SmartScreen 可能提示「未知发布者」。
 
 ## 指标口径
 
-| 指标 | 计算与来源 |
+| 指标 | 来源与含义 |
 |---|---|
-| 窗口余额 | 从最新账号级 rate-limit window 计算 `100 - used_percent`；不是现金余额 |
-| 当前任务实际消耗 | 当前项目最近用户任务的累计 `total_token_usage.total_tokens` |
-| 项目总消耗 | 按项目分配关系和根路径聚合主任务与子会话，并保持累计高水位 |
+| 5 小时 / 周额度 | 本机日志中最新账号级窗口的 `100 - used_percent`；不是现金余额 |
+| 低额度提醒 | 任一可用窗口剩余比例不超过 10%；完成状态会短暂优先展示 |
+| 当前任务消耗 | 当前项目最近用户会话的累计 `total_token_usage.total_tokens` |
+| 项目累计消耗 | 按项目分配和根路径聚合主会话与子会话，保留累计高水位 |
 | 缓存命中 | 项目累计 `cached_input_tokens ÷ input_tokens` |
-| 任务进度 | 优先读取 `update_plan` 的 completed / in_progress / pending；无计划时仅显示实时工作状态 |
-| 输出速度 | 最近两个有效输出 Token 样本的增量除以时间；超过两分钟无样本则回到待机 |
-| 消耗历史 | 从项目会话日志生成累计序列，再按天或日志时间段计算新增 Token |
+| 任务进度 | 有 update_plan 时展示步骤进度；运行中没有计划时显示进行中 / LIVE，不编造百分比 |
+| 模型与推理强度 | 读取任务上下文和 thread_settings_applied，必要时沿用项目最近的有效设置 |
+| 输出速度 | 最近有效输出 Token 样本的增量除以时间；超过两分钟没有样本时不继续显示旧速度 |
+| 消耗历史 | 按天汇总，点击日期查看分时数据；支持键盘、滑块和箭头 |
 
-## 角色状态
-
-| 状态 | 触发条件 |
-|---|---|
-| 待机 | 没有活跃任务，且窗口余额高于 20% |
-| 工作 | 最新任务已开始、尚未收到 Codex 完成事件 |
-| 低余额 | 当前用量窗口余额不高于 20%，且不在短暂完成展示期 |
-| 完成 | 收到最新任务的完成事件后展示，最多持续 15 秒 |
+任务是否完成仍以 Codex 完成事件为准。完成状态最多展示 15 秒，也可以点击人物提前结束展示。
 
 ## 从源码运行
 
@@ -86,61 +65,46 @@ Codex 余额助手是一款 Windows 透明桌面宠物。它以只读方式解�
 ```powershell
 npm install
 npm start
+npm run check
+npm test
 ```
 
-默认跟随 Codex 当前选中的项目。如需固定到指定目录：
+默认跟随 Codex 当前项目，也可以指定目录：
 
 ```powershell
-$env:CODEX_METER_PROJECT = "C:\path\to\project"
+$env:CODEX_METER_PROJECT = 'C:\path\to\project'
 npm start
 ```
 
-常用开发命令：
+构建便携版：
 
 ```powershell
-npm run check            # JavaScript 语法检查
-npm test                 # 自动化测试
-npm run preview:capture  # 生成精简版和详细版回归截图
-npm run slim             # 删除重复 Electron 开发运行时，复用便携版运行时
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1
 ```
 
-## 运行与磁盘优化
+默认输出到 `dist/Codex-Meter-Plus-win32-x64`，已有目录不会被覆盖。可用 CODEX_METER_PORTABLE_TARGET 指定项目目录内的新输出路径。
 
-- 保持 2 秒任务发现频率，日志未变化时复用 10 秒内的聚合快照。
-- 活跃日志采用增量读取和安全重叠区，避免反复分配大体积尾部缓冲区。
-- 主进程按修订号过滤重复 IPC；图表仅在历史数据变化时重绘，并使用统一事件委托。
-- 源码命令与便携版可复用同一套 Electron/Chromium 运行时，避免保存重复的 300+ MB 运行环境。
-- Chromium 后台服务、拼写检查、WebGL 与 DevTools 当前保持开启，便于调试和后续视觉扩展。
+使用便携版运行时做界面验证和截图：
 
-## 项目结构
-
-```text
-electron/   Electron 主进程、安全桥与 Codex 日志监控器
-src/        桌宠 UI、交互逻辑与人物状态资源
-scripts/    便携版构建、磁盘瘦身和视觉回归脚本
-test/       日志解析、任务生命周期与统计口径测试
-artifacts/  README 与视觉回归使用的界面截图
-dist/       本地生成的 Windows 便携版（不提交到 Git）
+```powershell
+$env:CODEX_METER_ELECTRON_RUNTIME = (Resolve-Path 'dist/Codex-Meter-Plus-win32-x64').Path
+npm run test:interaction-smoke
+npm run test:drag-smoke
+npm run test:pet-animation-smoke
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-electron-smoke.ps1 -Script scripts/pet-entry-smoke.cjs
+npm run preview:capture
 ```
 
-更完整的技术说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+## 运行开销
 
-## 隐私与安全
+原有的增量日志读取、快照复用、IPC 去重和图表按需重绘继续保留。新增动画使用本地图集和 Canvas 2D 连续补间，不需要额外安装动画运行库；这是程序化二维动画，不是 Live2D。待机目标为 60 FPS，实际帧率取决于设备负载。
 
-- 只读访问本机 Codex 状态文件和会话日志。
-- 不读取或展示提示词正文，不上传项目文件或日志。
-- 不写入 Codex 账号、配置和会话数据。
-- 项目名称、Token 和额度只在本机窗口中渲染。
+隐藏窗口、退出动态模式或开启系统「减少动态效果」后，会停止待机绘制。素材加载或绘制失败时回退静态人物，额度与任务面板仍可使用。
 
-安全问题请参阅 [SECURITY.md](SECURITY.md)，参与开发请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
+实现细节见 [架构说明](docs/ARCHITECTURE.md)，贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## 已知限制
+## 隐私与授权
 
-- 当前发布包仅支持 Windows x64。
-- 指标依赖本机 Codex 日志格式；上游格式变化可能需要适配。
-- 余额表示 Codex 日志中的用量窗口百分比，不是 API 账单或账户现金余额。
-- 未签名应用可能触发 SmartScreen 或杀毒软件的额外检查。
+应用只读访问本机 Codex 状态与会话日志，不修改账号、配置和会话数据，也不上传提示词、项目文件或日志。结果依赖本机日志格式与更新时间，上游变动可能需要适配。
 
-## 免责声明
-
-这是一个独立的非官方社区项目。软件按“现状”提供，不保证日志格式、额度口径或未来 Codex 版本始终兼容。源代码采用 [MIT License](LICENSE)；人物美术、截图和第三方品牌标识不包含在 MIT 授权中，具体边界见 [ASSET_LICENSE.md](ASSET_LICENSE.md)。
+源码采用 [MIT License](LICENSE)。人物、图标、动画图集和截图的授权边界见 [ASSET_LICENSE.md](ASSET_LICENSE.md)，安全问题请参阅 [SECURITY.md](SECURITY.md)。Codex、ChatGPT、OpenAI 及其标识归各自权利人所有。

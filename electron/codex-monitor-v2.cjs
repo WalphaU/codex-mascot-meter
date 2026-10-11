@@ -131,12 +131,26 @@ function parseEventsFromText(text) {
     const payload = event.payload || {};
 
     if (event.type === 'turn_context' && timestamp >= parsed.modelTimestamp) {
-      parsed.model = payload.model || parsed.model;
-      parsed.effort = payload.effort || parsed.effort;
-      parsed.modelTimestamp = timestamp;
+      const model = payload.model || null;
+      const effort = payload.effort || payload.reasoning_effort || null;
+      if (model || effort) {
+        parsed.model = model || parsed.model;
+        parsed.effort = effort || parsed.effort;
+        parsed.modelTimestamp = timestamp;
+      }
     }
     if (event.type === 'event_msg') {
       parsed.lastActivityType = payload.type || parsed.lastActivityType;
+      if (payload.type === 'thread_settings_applied' && timestamp >= parsed.modelTimestamp) {
+        const settings = payload.thread_settings || {};
+        const model = settings.model || null;
+        const effort = settings.reasoning_effort || settings.effort || null;
+        if (model || effort) {
+          parsed.model = model || parsed.model;
+          parsed.effort = effort || parsed.effort;
+          parsed.modelTimestamp = timestamp;
+        }
+      }
       if (payload.type === 'task_started' && timestamp >= parsed.taskStatusTimestamp) {
         parsed.taskStatus = 'working'; parsed.taskStatusTimestamp = timestamp;
         parsed.taskStartedTimestamp = timestamp; parsed.activeTurnId = payload.turn_id || null;
@@ -259,6 +273,13 @@ function quotaWindows(rateLimits) {
   });
 }
 
+function lowestQuotaRemaining(windows) {
+  const values = (windows || [])
+    .map((window) => Number(window?.remainingPercent))
+    .filter(Number.isFinite);
+  return values.length ? Math.min(...values) : null;
+}
+
 function observedOutputSpeed(samples, now = Date.now()) {
   if (!samples?.length || now - samples.at(-1).timestamp > 120_000) return null;
   for (let index = samples.length - 1; index > 0; index -= 1) {
@@ -283,7 +304,7 @@ function sampleSeries(points, limit = 96) {
 function resolveMascotState({ isDone, completedAt = 0, isWorking, remainingPercent, now = Date.now() }) {
   const completionAgeMs = isDone ? Math.max(0, now - Number(completedAt || 0)) : Infinity;
   if (isDone && completionAgeMs < 15_000) return 'done';
-  if (remainingPercent != null && Number(remainingPercent) <= 20) return 'low';
+  if (remainingPercent != null && Number(remainingPercent) <= 10) return 'low';
   return isWorking ? 'working' : 'idle';
 }
 
@@ -430,6 +451,10 @@ class CodexMonitor {
     const sourceSessions = projectSessions;
     const userSessions = sourceSessions.filter((session) => session.meta.threadSource !== 'subagent');
     const current = userSessions[0] || sourceSessions[0] || null;
+    const configuredSessions = userSessions.length ? userSessions : sourceSessions;
+    const latestConfigured = configuredSessions
+      .filter((session) => session.events.model || session.events.effort)
+      .sort((left, right) => (right.events.modelTimestamp || 0) - (left.events.modelTimestamp || 0))[0] || null;
 
     const rawProjectUsage = sourceSessions.reduce((usage, session) => ({
       inputTokens: usage.inputTokens + Number(session.events.tokenUsage?.input_tokens || 0),
@@ -450,6 +475,7 @@ class CodexMonitor {
     const windows = quotaWindows(rateLimits);
     const primaryWindow = windows.find((window) => window.key === 'primary') || windows[0] || null;
     const remainingPercent = primaryWindow?.remainingPercent ?? null;
+    const lowRemainingPercent = lowestQuotaRemaining(windows);
     const rawProgress = planProgress(current?.events.plan);
     const ageMs = current ? Date.now() - sessionActivity(current) : Infinity;
     const hasActivePlan = Boolean(current?.events.plan?.some((item) => item.status === 'in_progress'));
@@ -466,7 +492,7 @@ class CodexMonitor {
       isDone,
       completedAt: current?.events.taskCompletedTimestamp || 0,
       isWorking,
-      remainingPercent
+      remainingPercent: lowRemainingPercent
     });
     const history = buildProjectHistory(sourceSessions, projectUsage.totalTokens);
 
@@ -476,11 +502,11 @@ class CodexMonitor {
       state,
       task: { id: current?.meta.id || null, turnId: current?.events.activeTurnId || null, isWorking, isDone, progress,
         startedAt: current?.events.taskStartedTimestamp || 0, completedAt: current?.events.taskCompletedTimestamp || 0,
-        activity: current?.events.lastActivityType || 'waiting', model: current?.events.model || null,
-        effort: current?.events.effort || null, speedTokensPerSecond: observedOutputSpeed(current?.events.tokenSamples),
+        activity: current?.events.lastActivityType || 'waiting', model: current?.events.model || latestConfigured?.events.model || null,
+        effort: current?.events.effort || latestConfigured?.events.effort || null, speedTokensPerSecond: observedOutputSpeed(current?.events.tokenSamples),
         totalTokens: Number(current?.events.tokenUsage?.total_tokens || 0), lastTurnTokens: Number(current?.events.lastTokenUsage?.total_tokens || 0) },
       usage: { remainingPercent, usedPercent: primaryWindow?.usedPercent ?? 0, resetsAt: primaryWindow?.resetsAt ?? 0,
-        windowMinutes: primaryWindow?.windowMinutes ?? 0, windowLabel: primaryWindow?.label || '用量窗口', windows,
+        lowRemainingPercent, windowMinutes: primaryWindow?.windowMinutes ?? 0, windowLabel: primaryWindow?.label || '用量窗口', windows,
         creditsBalance: rateLimits?.credits?.balance ?? null, totalTokens: projectUsage.totalTokens,
         currentTokens: Number(current?.events.tokenUsage?.total_tokens || 0), deltaTokens,
         inputTokens: projectUsage.inputTokens, outputTokens: projectUsage.outputTokens, cachedTokens: projectUsage.cachedTokens,
@@ -493,4 +519,4 @@ class CodexMonitor {
   }
 }
 
-module.exports = { CodexMonitor, normalizePath, parseEventsFromText, mergeEventState, planProgress, formatWindowLabel, quotaWindows, observedOutputSpeed, buildProjectHistory, readCodexAppState, belongsToProject, resolveMascotState };
+module.exports = { CodexMonitor, normalizePath, parseEventsFromText, mergeEventState, planProgress, formatWindowLabel, quotaWindows, lowestQuotaRemaining, observedOutputSpeed, buildProjectHistory, readCodexAppState, belongsToProject, resolveMascotState };

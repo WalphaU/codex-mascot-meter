@@ -2,7 +2,7 @@
 
 仓库根目录的 [LICENSE](LICENSE) 仅授权本项目源代码和原创技术文档，不自动授权以下内容：
 
-- `src/assets/*.png`、`src/assets/*.webp` 中的人物、图标和其他美术资源。
+- `src/assets/` 及其子目录中的人物、图标、PNG/WebP 动画帧、图集和其他美术资源。
 - `artifacts/*.png` 中的产品截图及其包含的人物形象。
 - OpenAI、ChatGPT、Codex 名称、标识以及其他第三方商标或品牌元素。
 

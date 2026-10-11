@@ -3,15 +3,36 @@ const bridge = window.codexMeter || {
   onSnapshot: () => () => {},
   minimize: () => {},
   close: () => {},
-  setMode: () => {}
+  setMode: () => {},
+  petDragStart: () => {},
+  petDragMove: () => {},
+  petDragEnd: () => {},
+  onPetDragStopped: () => () => {}
 };
+const {
+  PetAnimationController,
+  PET_ANIMATION_PRIORITIES,
+  PetSequenceAdapter,
+  PetIdlePlayer,
+  createPetAnimationActions,
+  PET_RANDOM_ACTIONS
+} = window.CodexPetAnimation || {};
 
 const $ = (id) => document.getElementById(id);
 const widget = document.querySelector('.widget');
 const detailPanel = document.querySelector('.detail-panel');
 const compactHud = document.querySelector('.compact-hud');
 const compactToolbar = document.querySelector('.compact-toolbar');
-const circumference = 2 * Math.PI * 68;
+const dynamicPetStage = $('dynamicPetStage');
+const dynamicPet = $('dynamicPet');
+const dynamicHitTarget = $('dynamicHitTarget');
+const dynamicBackButton = $('dynamicBackButton');
+const dynamicActor = $('dynamicActor');
+const dynamicSequence = $('dynamicSequence');
+const dynamicSequenceFrames = [...dynamicSequence.querySelectorAll('[data-sequence-slot]')];
+const dragSequence = $('dragSequence');
+const dynamicRig = $('dynamicRig');
+const dynamicRigFrames = [...dynamicRig.querySelectorAll('[data-rig-slot]')];
 let currentMode = 'compact';
 let latestSnapshot = null;
 let completionDismissedKey = null;
@@ -22,6 +43,49 @@ let chartProjectKey = null;
 let chartNavigationChanged = false;
 let lastChartRenderKey = '';
 let chartPoints = [];
+let dynamicLastAction = '';
+let dynamicDragging = false;
+let dynamicPointer = null;
+let dynamicDragFrame = 0;
+let dynamicDragPoint = null;
+let dynamicDragSessionSerial = 0;
+let dynamicDragSessionId = null;
+let dynamicLastSentCursor = null;
+let dynamicBackTimer = null;
+let dynamicControlsHovered = false;
+let dynamicRigSlot = 0;
+let dynamicRigAsset = './assets/idle/idle-01.png';
+let dynamicRigFailed = false;
+let petAnimationController = null;
+let petSequenceAdapter = null;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const DYNAMIC_ACTION_GAP = 10_000;
+const LOW_QUOTA_THRESHOLD = 10;
+
+const DYNAMIC_ACTIONS = Object.freeze({
+});
+
+const DYNAMIC_POSES = Object.freeze({
+  idle: 'idle',
+  enter: 'idle',
+  pet: 'idle',
+  drag: 'drag',
+  land: 'jump'
+});
+
+const DYNAMIC_RIG_ASSETS = Object.freeze({
+  idle: './assets/idle/idle-01.png',
+  jump: './assets/mascot-action-jump.webp',
+  happy: './assets/mascot-action-happy.webp',
+  drag: './assets/mascot-action-drag.webp'
+});
+
+const DYNAMIC_SEQUENCES = Object.freeze({
+});
+
+const DYNAMIC_POOLS = Object.freeze({
+  idle: [], working: [], low: [], done: []
+});
 
 const numberFormat = new Intl.NumberFormat('zh-CN');
 const compactFormat = new Intl.NumberFormat('zh-CN', { notation: 'compact', maximumFractionDigits: 1 });
@@ -36,24 +100,303 @@ function clamp(value, min = 0, max = 100) {
   return Math.min(max, Math.max(min, Number(value) || 0));
 }
 
-function setMode(nextMode) {
-  const next = nextMode === 'detail' ? 'detail' : 'compact';
-  if (currentMode === next) return;
+function setMode(nextMode, force = false) {
+  const next = ['compact', 'detail', 'dynamic'].includes(nextMode) ? nextMode : 'compact';
+  if (!force && currentMode === next) return;
+  const wasDynamic = currentMode === 'dynamic';
   currentMode = next;
   widget.dataset.mode = next;
   const isDetail = next === 'detail';
+  const isCompact = next === 'compact';
+  const isDynamic = next === 'dynamic';
   detailPanel.setAttribute('aria-hidden', String(!isDetail));
-  compactHud.setAttribute('aria-hidden', String(isDetail));
-  compactToolbar.setAttribute('aria-hidden', String(isDetail));
+  compactHud.setAttribute('aria-hidden', String(!isCompact));
+  compactToolbar.setAttribute('aria-hidden', String(!isCompact));
+  dynamicPetStage.setAttribute('aria-hidden', String(!isDynamic));
+  dynamicPetStage.inert = !isDynamic;
   $('petButton').setAttribute('aria-label', isDetail ? 'Codex 桌面宠物' : '打开 Codex 项目详细面板');
-  $('compactModeButton').tabIndex = isDetail ? -1 : 0;
-  $('compactCloseButton').tabIndex = isDetail ? -1 : 0;
+  $('petButton').tabIndex = isDynamic ? -1 : 0;
+  $('dynamicModeButton').tabIndex = isCompact ? 0 : -1;
+  $('compactModeButton').tabIndex = isCompact ? 0 : -1;
+  $('compactCloseButton').tabIndex = isCompact ? 0 : -1;
+  $('dynamicBackButton').tabIndex = isDynamic ? 0 : -1;
+  dynamicHitTarget.tabIndex = isDynamic ? 0 : -1;
   for (const button of detailPanel.querySelectorAll('button')) button.tabIndex = isDetail ? 0 : -1;
+  if (wasDynamic && !isDynamic) stopDynamicPet();
+  if (isDynamic) startDynamicPet();
+  if (!isDynamic) hideDynamicBack(true);
   bridge.setMode(next);
 }
 
+function revealDynamicBack() {
+  if (dynamicBackTimer) clearTimeout(dynamicBackTimer);
+  dynamicBackTimer = null;
+  if (currentMode !== 'dynamic' || dynamicDragging) return;
+  dynamicPetStage.dataset.backVisible = 'true';
+}
+
+function hideDynamicBack(immediate = false) {
+  if (dynamicBackTimer) clearTimeout(dynamicBackTimer);
+  dynamicBackTimer = null;
+  if (immediate) {
+    delete dynamicPetStage.dataset.backVisible;
+    return;
+  }
+  dynamicBackTimer = setTimeout(() => {
+    if (!dynamicControlsHovered && !dynamicDragging) delete dynamicPetStage.dataset.backVisible;
+    dynamicBackTimer = null;
+  }, 420);
+}
+
+function setDynamicRigPose(pose) {
+  if (dynamicRigFailed) return;
+  const asset = DYNAMIC_RIG_ASSETS[pose] || DYNAMIC_RIG_ASSETS.idle;
+  if (asset === dynamicRigAsset && dynamicActor.dataset.rigReady === 'true') return;
+  const nextSlot = dynamicRigSlot === 0 ? 1 : 0;
+  const frame = dynamicRigFrames[nextSlot];
+  if (!frame) return;
+  for (const image of frame.querySelectorAll('img')) {
+    if (!image.src.endsWith(asset.replace('./', '/'))) image.src = asset;
+  }
+  frame.dataset.rigPose = pose;
+  dynamicRigSlot = nextSlot;
+  dynamicRigAsset = asset;
+  dynamicRig.dataset.activeSlot = String(nextSlot);
+  dynamicActor.dataset.rigReady = 'true';
+}
+
+function failDynamicRig(error) {
+  if (dynamicRigFailed) return;
+  dynamicRigFailed = true;
+  delete dynamicActor.dataset.rigReady;
+  console.warn('[dynamic-pet] segmented rig disabled; using static fallback', error?.message || error || 'asset error');
+}
+
+for (const image of dynamicRig.querySelectorAll('img')) image.addEventListener('error', failDynamicRig);
+for (const image of dragSequence.querySelectorAll('img')) {
+  image.addEventListener('error', () => { dynamicActor.dataset.dragSequenceFailed = 'true'; });
+}
+dynamicActor.dataset.rigReady = 'true';
+
+function setDynamicAction(action, label = '', rigPose = '') {
+  dynamicActor.dataset.action = action;
+  dynamicActor.dataset.pose = DYNAMIC_POSES[action] || 'idle';
+  setDynamicRigPose(rigPose || DYNAMIC_POSES[action] || 'idle');
+  const actionLabel = label || DYNAMIC_ACTIONS[action]?.label || '待机呼吸';
+  dynamicHitTarget.setAttribute('aria-label', `动态桌宠：${actionLabel}。单击互动，拖动可移动`);
+}
+
+function setDynamicPhase(phase) {
+  dynamicActor.dataset.phase = phase;
+}
+
+function dynamicRuntimeState() {
+  const state = widget.dataset.state || 'idle';
+  return DYNAMIC_POOLS[state] ? state : 'idle';
+}
+
+function chooseDynamicAction() {
+  const pool = DYNAMIC_POOLS[dynamicRuntimeState()] || DYNAMIC_POOLS.idle;
+  const choices = pool.filter((action) => PET_RANDOM_ACTIONS.includes(action) && action !== dynamicLastAction);
+  const action = choices[Math.floor(Math.random() * choices.length)] || null;
+  dynamicLastAction = action;
+  return action;
+}
+
+function stopDynamicPet() {
+  petAnimationController?.stop('mode-exit');
+  void petSequenceAdapter?.deactivate({ immediate: true });
+  dynamicDragging = false;
+  dynamicControlsHovered = false;
+  delete dynamicPetStage.dataset.dragging;
+  delete dynamicPetStage.dataset.backVisible;
+  if (dynamicBackTimer) clearTimeout(dynamicBackTimer);
+  dynamicBackTimer = null;
+  dynamicPointer = null;
+  dynamicDragPoint = null;
+  dynamicLastSentCursor = null;
+  dynamicActor.style.removeProperty('--pet-x');
+  dynamicActor.style.removeProperty('--pet-y');
+  if (dynamicDragFrame) cancelAnimationFrame(dynamicDragFrame);
+  dynamicDragFrame = 0;
+  if (dynamicDragSessionId !== null) bridge.petDragEnd({ sessionId: dynamicDragSessionId });
+  dynamicDragSessionId = null;
+  if (!petAnimationController) {
+    setDynamicAction('idle');
+    setDynamicPhase('idle');
+  }
+}
+
+function startDynamicPet() {
+  if (currentMode !== 'dynamic') return;
+  if (!petAnimationController) initializePetAnimationController();
+  petAnimationController?.setVisibility(!document.hidden);
+  petAnimationController?.setReducedMotion(reducedMotion.matches);
+  // The current idle renderer owns the very first frame; never play the old intro.
+  void petAnimationController?.start({ intro: false });
+}
+
+function reactToDynamicPet() {
+  if (currentMode !== 'dynamic' || dynamicDragging) return;
+  dismissCompletionState();
+  void petAnimationController?.request('pet', {
+    priority: PET_ANIMATION_PRIORITIES?.interaction || 800,
+    source: 'interaction',
+    force: true
+  });
+}
+
+async function playLegacyDynamicAction(action, context, duration) {
+  const motionDuration = reducedMotion.matches ? Math.min(80, duration) : duration;
+  await context.wait(motionDuration);
+}
+
+function applyControllerState(action, metadata = {}) {
+  if (metadata.source === 'random') dynamicActor.dataset.direction = Math.random() < .5 ? 'left' : 'right';
+  setDynamicAction(action, metadata.label || '', DYNAMIC_POSES[action] || 'idle');
+}
+
+function initializePetAnimationController() {
+  if (petAnimationController) return petAnimationController;
+  if (!PetAnimationController || !PetSequenceAdapter || !createPetAnimationActions) {
+    console.warn('[dynamic-pet] animation runtime unavailable; static fallback remains active');
+    return null;
+  }
+  petSequenceAdapter = new PetSequenceAdapter({
+    container: dynamicSequence,
+    slots: dynamicSequenceFrames,
+    owner: dynamicActor,
+    transitionMs: 180,
+    warn: (...args) => console.warn(...args)
+  }).registerAll(DYNAMIC_SEQUENCES);
+
+  const actions = createPetAnimationActions({
+    sequenceAdapter: petSequenceAdapter,
+    owner: dynamicActor,
+    playLegacy: playLegacyDynamicAction,
+    playGreeting: context => petAnimationController?.idlePlayer?.playGreeting(context),
+    warn: (...args) => console.warn(...args)
+  });
+
+  petAnimationController = new PetAnimationController({
+    actions,
+    idlePlayer: PetIdlePlayer ? new PetIdlePlayer({
+      element: $('dynamicIdle'), owner: dynamicActor,
+      asset: './assets/idle/idle-atlas.png'
+    }) : null,
+    randomEnabled: false,
+    idleGap: DYNAMIC_ACTION_GAP,
+    transitionMs: 180,
+    reducedMotion: reducedMotion.matches,
+    chooseAction: () => chooseDynamicAction(),
+    onStateChange: applyControllerState,
+    onPhaseChange: (phase) => setDynamicPhase(phase),
+    onError: (error, context) => {
+      console.warn(`[dynamic-pet] ${context?.action || 'action'} recovered to idle`, error?.message || error);
+      void petSequenceAdapter?.deactivate({ immediate: true });
+    }
+  });
+  Object.defineProperty(window, '__codexPetAnimationController', {
+    configurable: true,
+    value: petAnimationController
+  });
+  return petAnimationController;
+}
+
+initializePetAnimationController();
+// Decode while the default panel is visible; this does not start an animation clock.
+void petAnimationController?.idlePlayer?.preload();
+
+function sendPendingDragPoint() {
+  dynamicDragFrame = 0;
+  if (!dynamicDragPoint || !dynamicDragging) return;
+  const point = dynamicDragPoint;
+  dynamicDragPoint = null;
+  if (dynamicLastSentCursor && point.screenX === dynamicLastSentCursor.screenX && point.screenY === dynamicLastSentCursor.screenY) return;
+  dynamicLastSentCursor = { screenX: point.screenX, screenY: point.screenY };
+  bridge.petDragMove(point);
+}
+
+function finishDynamicPointer(event = {}, { allowClick = false, notifyMain = true } = {}) {
+  if (!dynamicPointer || (event.pointerId !== undefined && event.pointerId !== dynamicPointer.pointerId)) return;
+  const wasDragging = dynamicDragging;
+  const pointerId = dynamicPointer.pointerId;
+  const sessionId = dynamicDragSessionId;
+  dynamicPointer = null;
+  try {
+    if (dynamicHitTarget.hasPointerCapture?.(pointerId)) dynamicHitTarget.releasePointerCapture(pointerId);
+  } catch (error) {
+    console.warn('[dynamic-pet] pointer capture release recovered', error?.message || error);
+  }
+  if (!wasDragging) {
+    if (allowClick) reactToDynamicPet();
+    return;
+  }
+  dynamicDragging = false;
+  delete dynamicPetStage.dataset.dragging;
+  dynamicDragPoint = null;
+  if (dynamicDragFrame) cancelAnimationFrame(dynamicDragFrame);
+  dynamicDragFrame = 0;
+  dynamicLastSentCursor = null;
+  dynamicDragSessionId = null;
+  if (notifyMain) bridge.petDragEnd({ sessionId });
+  if (dynamicControlsHovered) revealDynamicBack();
+  void petAnimationController?.request('land', {
+    priority: PET_ANIMATION_PRIORITIES?.interaction || 800,
+    source: 'drag-release',
+    force: true
+  });
+}
+
+function quotaWindowsForDisplay(usage = {}) {
+  return Array.isArray(usage.windows) ? usage.windows.filter(Boolean) : [];
+}
+
+function quotaRemaining(windowData) {
+  if (windowData?.remainingPercent === null || windowData?.remainingPercent === undefined) return null;
+  const remaining = Number(windowData.remainingPercent);
+  return Number.isFinite(remaining) ? clamp(remaining) : null;
+}
+
+function findQuotaWindow(usage, windowMinutes, fallbackKey) {
+  const windows = quotaWindowsForDisplay(usage);
+  const exact = windows.find((windowData) => Number(windowData.windowMinutes) === windowMinutes);
+  if (exact) return exact;
+  const keyed = windows.find((windowData) => windowData.key === fallbackKey);
+  return keyed && !Number(keyed.windowMinutes) ? keyed : null;
+}
+
+function strictestQuotaWindow(usage) {
+  return quotaWindowsForDisplay(usage)
+    .filter((windowData) => quotaRemaining(windowData) !== null)
+    .sort((left, right) => quotaRemaining(left) - quotaRemaining(right))[0] || null;
+}
+
+function renderCompactQuota(valueId, barId, windowData) {
+  const remaining = quotaRemaining(windowData);
+  $(valueId).textContent = remaining === null ? '—' : `${Math.round(remaining)}%`;
+  $(barId).style.width = `${remaining ?? 0}%`;
+}
+
+function renderDetailQuota(cardId, valueId, resetId, barId, windowData, fallbackLabel) {
+  const card = $(cardId);
+  const remaining = quotaRemaining(windowData);
+  const known = remaining !== null;
+  card.dataset.known = String(known);
+  card.dataset.low = String(known && remaining <= LOW_QUOTA_THRESHOLD);
+  card.style.setProperty('--quota-remaining', String(remaining ?? 0));
+  $(valueId).textContent = known ? `${Math.round(remaining)}%` : '—';
+  $(resetId).textContent = windowData?.resetsAt ? `${formatCountdown(windowData.resetsAt)}后重置` : '等待额度数据';
+  $(barId).style.width = `${remaining ?? 0}%`;
+  card.setAttribute('aria-label', `${windowData?.label || fallbackLabel}，${known ? `剩余 ${Math.round(remaining)}%` : '数据未知'}${windowData?.resetsAt ? `，${formatCountdown(windowData.resetsAt)}后重置` : ''}`);
+}
+
 function stateCopy(snapshot, state) {
-  if (state === 'low') return { compact: '余额偏低', label: '额度提醒', step: '当前用量窗口余额不足 20%' };
+  if (state === 'low') {
+    const lowest = strictestQuotaWindow(snapshot?.usage || {});
+    const remaining = quotaRemaining(lowest);
+    return { compact: '余额偏低', label: '额度提醒', step: `${lowest?.label || '任一额度窗口'}${remaining === null ? '' : `剩余 ${Math.round(remaining)}%`}，已达到 10% 提醒线` };
+  }
   if (state === 'done') return { compact: '刚刚完成', label: '任务完成', step: snapshot.task?.progress?.activeStep || '当前任务已完成' };
   if (state === 'working') return { compact: '工作中', label: '正在执行', step: snapshot.task?.progress?.activeStep || 'Codex 正在处理当前任务' };
   return { compact: '待机', label: '等待任务', step: '等待 Codex 开始任务' };
@@ -65,8 +408,8 @@ function completionKey(snapshot) {
 }
 
 function lowQuotaFallback(snapshot) {
-  const remaining = snapshot?.usage?.remainingPercent;
-  return remaining != null && Number(remaining) <= 20 ? 'low' : 'idle';
+  const remaining = snapshot?.usage?.lowRemainingPercent ?? quotaRemaining(strictestQuotaWindow(snapshot?.usage || {}));
+  return remaining != null && Number(remaining) <= LOW_QUOTA_THRESHOLD ? 'low' : 'idle';
 }
 
 function resolveVisualState(snapshot) {
@@ -111,7 +454,7 @@ function formatCountdown(resetsAt) {
 }
 
 function effortLabel(effort) {
-  return ({ none: '无', low: '低', medium: '中', high: '高', xhigh: '超高', max: '最大' })[String(effort || '').toLowerCase()] || (effort || '—');
+  return ({ none: '无', minimal: '极低', low: '低', medium: '中', high: '高', xhigh: '超高', max: '最大' })[String(effort || '').toLowerCase()] || (effort || '—');
 }
 
 function svgElement(name, attributes = {}) {
@@ -200,19 +543,17 @@ function aggregateDaily(intervals) {
   return [...days.values()].sort((a, b) => a.timestamp - b.timestamp);
 }
 
-function drawChart(history, logs, total, delta) {
+function drawChart(history, total, delta) {
   let series = Array.isArray(history) ? history
     .map((point) => ({ timestamp: Number(point.timestamp), totalTokens: Number(point.totalTokens) }))
     .filter((point) => Number.isFinite(point.timestamp) && Number.isFinite(point.totalTokens)) : [];
   if (!series.length && Number(total)) series = [{ timestamp: Date.now(), totalTokens: Number(total) }];
-  const logItems = Array.isArray(logs) ? logs : [];
   const renderKey = [
     chartLevel,
     selectedDayKey || '',
     Number(total) || 0,
     Number(delta) || 0,
-    series.map((point) => `${point.timestamp}:${point.totalTokens}`).join(','),
-    logItems.map((log) => `${log.id || ''}:${log.timestamp || 0}:${log.tokens || 0}:${log.kind || ''}`).join(',')
+    series.map((point) => `${point.timestamp}:${point.totalTokens}`).join(',')
   ].join('|');
   if (renderKey === lastChartRenderKey) return;
   lastChartRenderKey = renderKey;
@@ -303,22 +644,6 @@ function drawChart(history, logs, total, delta) {
     ? `当前项目共记录 ${dailyBars.length} 天的 token 消耗，当前累计 ${numberFormat.format(last)} tokens。点击任意日期可查看当日分时数据。`
     : `${formatFullDay(selectedDayKey)}共记录 ${displayData.length} 个时间段，消耗 ${numberFormat.format(selectedAdded)} tokens。`;
 
-  $('historyLogCount').textContent = `${logItems.length} 条`;
-  $('historyLogList').replaceChildren();
-  for (const log of logItems) {
-    const row = document.createElement('div');
-    row.className = 'history-log-item';
-    row.dataset.kind = log.kind || 'task';
-    const marker = document.createElement('i');
-    marker.setAttribute('aria-hidden', 'true');
-    const label = document.createElement('span');
-    label.textContent = `${log.kind === 'subagent' ? '子会话' : '主任务'} · ${formatChartDate(log.timestamp, true)}`;
-    const value = document.createElement('strong');
-    value.textContent = formatTokens(log.tokens);
-    value.title = `${formatTokens(log.tokens, false)} tokens`;
-    row.append(marker, label, value);
-    $('historyLogList').append(row);
-  }
   $('deltaBadge').textContent = `本次 +${formatTokens(Number(delta) || 0)}`;
 
   requestAnimationFrame(() => {
@@ -349,13 +674,12 @@ function render(snapshot) {
   widget.dataset.state = ['idle', 'working', 'low', 'done'].includes(visualState) ? visualState : 'idle';
   const copy = stateCopy(snapshot, visualState);
   const taskVisuallyDone = visualState === 'done';
-  const taskVisuallyWorking = visualState === 'working';
+  const taskVisuallyWorking = Boolean(task.isWorking);
   const progress = taskVisuallyDone || taskVisuallyWorking ? task.progress : null;
   const taskPercent = progress ? clamp(progress.percent) : (taskVisuallyDone ? 100 : 0);
   const indeterminate = Boolean(taskVisuallyWorking && !progress);
-  const quotaKnown = Number.isFinite(Number(usage.remainingPercent)) && usage.remainingPercent !== null;
-  const remaining = quotaKnown ? clamp(usage.remainingPercent) : null;
-  const windowLabel = usage.windowLabel || '用量窗口';
+  const fiveHourWindow = findQuotaWindow(usage, 300, 'primary');
+  const weeklyWindow = findQuotaWindow(usage, 10080, 'secondary');
 
   $('projectName').textContent = projectName;
   $('projectName').title = project.path || projectName;
@@ -367,15 +691,10 @@ function render(snapshot) {
   $('compactTaskValue').textContent = progress ? `${taskPercent}%` : taskVisuallyWorking ? '进行中' : taskVisuallyDone ? '完成' : '待机';
   $('compactTaskBar').style.width = `${taskPercent}%`;
   $('compactTaskBar').classList.toggle('is-indeterminate', indeterminate);
-  $('compactQuotaLabel').textContent = `${windowLabel}余额`;
-  $('compactQuotaValue').textContent = remaining == null ? '—' : `${Math.round(remaining)}%`;
-  $('compactQuotaBar').style.width = `${remaining ?? 0}%`;
-
-  $('quotaTitle').textContent = '窗口余额';
-  $('quotaValue').textContent = remaining == null ? '—' : `${Math.round(remaining)}%`;
-  $('quotaWindowLabel').textContent = windowLabel;
-  $('quotaArc').style.strokeDasharray = circumference;
-  $('quotaArc').style.strokeDashoffset = remaining == null ? circumference : circumference * (1 - remaining / 100);
+  renderCompactQuota('compactFiveHourQuotaValue', 'compactFiveHourQuotaBar', fiveHourWindow);
+  renderCompactQuota('compactWeeklyQuotaValue', 'compactWeeklyQuotaBar', weeklyWindow);
+  renderDetailQuota('fiveHourQuotaCard', 'fiveHourQuotaValue', 'fiveHourQuotaReset', 'fiveHourQuotaBar', fiveHourWindow, '5小时窗口');
+  renderDetailQuota('weeklyQuotaCard', 'weeklyQuotaValue', 'weeklyQuotaReset', 'weeklyQuotaBar', weeklyWindow, '1周窗口');
 
   $('stateLabel').textContent = copy.label;
   $('activeStep').textContent = copy.step;
@@ -395,8 +714,12 @@ function render(snapshot) {
   $('cacheRate').title = input ? `${formatTokens(cached, false)} / ${formatTokens(input, false)} tokens` : '';
 
   const delta = Number(usage.deltaTokens) || 0;
-  drawChart(usage.history, usage.historyLogs, usage.totalTokens, delta);
-  $('resetCountdown').textContent = formatCountdown(usage.resetsAt);
+  drawChart(usage.history, usage.totalTokens, delta);
+  const nextQuotaReset = [fiveHourWindow?.resetsAt, weeklyWindow?.resetsAt]
+    .map(Number)
+    .filter((value) => Number.isFinite(value) && value > Date.now())
+    .sort((left, right) => left - right)[0];
+  $('resetCountdown').textContent = nextQuotaReset ? formatCountdown(nextQuotaReset) : '等待窗口刷新';
   $('modelName').textContent = task.model || '—';
   $('modelName').title = task.model || '';
   $('effortValue').textContent = effortLabel(task.effort);
@@ -409,11 +732,133 @@ $('petButton').addEventListener('click', () => {
   dismissCompletionState();
   if (currentMode === 'compact') setMode('detail');
 });
+$('dynamicModeButton').addEventListener('click', () => setMode('dynamic'));
+$('dynamicBackButton').addEventListener('click', () => setMode('compact'));
 $('compactModeButton').addEventListener('click', () => setMode('detail'));
 $('modeButton').addEventListener('click', () => setMode('compact'));
 $('compactCloseButton').addEventListener('click', () => bridge.close());
 $('closeButton').addEventListener('click', () => bridge.close());
 $('minimizeButton').addEventListener('click', () => bridge.minimize());
+
+dynamicPetStage.addEventListener('pointerover', () => {
+  if (currentMode !== 'dynamic') return;
+  dynamicControlsHovered = true;
+  revealDynamicBack();
+});
+dynamicPetStage.addEventListener('pointerout', (event) => {
+  if (event.relatedTarget instanceof Node && dynamicPetStage.contains(event.relatedTarget)) return;
+  dynamicControlsHovered = false;
+  hideDynamicBack();
+});
+dynamicBackButton.addEventListener('focus', () => {
+  dynamicControlsHovered = true;
+  revealDynamicBack();
+});
+dynamicBackButton.addEventListener('blur', (event) => {
+  if (event.relatedTarget instanceof Node && dynamicPetStage.contains(event.relatedTarget)) return;
+  dynamicControlsHovered = false;
+  hideDynamicBack();
+});
+
+dynamicHitTarget.addEventListener('pointerdown', (event) => {
+  if (currentMode !== 'dynamic' || event.button !== 0) return;
+  event.preventDefault();
+  if (dynamicPointer) finishDynamicPointer({ pointerId: dynamicPointer.pointerId }, { notifyMain: true });
+  dynamicPointer = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    startScreenX: event.screenX,
+    startScreenY: event.screenY
+  };
+  dynamicLastSentCursor = null;
+  try {
+    dynamicHitTarget.setPointerCapture?.(event.pointerId);
+  } catch (error) {
+    console.warn('[dynamic-pet] pointer capture unavailable; native release hook remains active', error?.message || error);
+  }
+});
+
+dynamicHitTarget.addEventListener('pointermove', (event) => {
+  if (!dynamicPointer || event.pointerId !== dynamicPointer.pointerId) return;
+  if ((event.buttons & 1) !== 1) {
+    finishDynamicPointer(event);
+    return;
+  }
+  const distance = Math.hypot(event.clientX - dynamicPointer.startX, event.clientY - dynamicPointer.startY);
+  if (!dynamicDragging && distance >= 6) {
+    dynamicDragging = true;
+    dynamicPetStage.dataset.dragging = 'true';
+    hideDynamicBack(true);
+    void petSequenceAdapter?.deactivate({ immediate: true });
+    dynamicActor.style.removeProperty('--pet-x');
+    dynamicActor.style.removeProperty('--pet-y');
+    dynamicDragSessionId = ++dynamicDragSessionSerial;
+    bridge.petDragStart({
+      sessionId: dynamicDragSessionId,
+      screenX: dynamicPointer.startScreenX,
+      screenY: dynamicPointer.startScreenY
+    });
+    petAnimationController?.hold('drag', {
+      priority: PET_ANIMATION_PRIORITIES?.drag || 900,
+      label: '被揪住后领',
+      source: 'drag'
+    });
+  }
+  if (!dynamicDragging) return;
+  event.preventDefault();
+  dynamicDragPoint = {
+    sessionId: dynamicDragSessionId,
+    screenX: Math.round(event.screenX),
+    screenY: Math.round(event.screenY),
+    buttons: event.buttons
+  };
+  if (!dynamicDragFrame) dynamicDragFrame = requestAnimationFrame(sendPendingDragPoint);
+});
+
+dynamicHitTarget.addEventListener('pointerup', (event) => finishDynamicPointer(event, { allowClick: true }));
+dynamicHitTarget.addEventListener('pointercancel', (event) => finishDynamicPointer(event));
+dynamicHitTarget.addEventListener('lostpointercapture', (event) => {
+  if (dynamicPointer && event.pointerId === dynamicPointer.pointerId) finishDynamicPointer(event);
+});
+dynamicHitTarget.addEventListener('keydown', (event) => {
+  if (!['Enter', ' '].includes(event.key)) return;
+  event.preventDefault();
+  reactToDynamicPet();
+});
+dynamicHitTarget.addEventListener('contextmenu', (event) => event.preventDefault());
+
+window.addEventListener('pointerup', (event) => finishDynamicPointer(event, { allowClick: true }), true);
+window.addEventListener('pointercancel', (event) => finishDynamicPointer(event), true);
+window.addEventListener('mouseup', (event) => {
+  if (event.button === 0 && dynamicPointer) finishDynamicPointer({ pointerId: dynamicPointer.pointerId }, { allowClick: true });
+}, true);
+window.addEventListener('blur', () => {
+  if (dynamicPointer) finishDynamicPointer({ pointerId: dynamicPointer.pointerId });
+  dynamicControlsHovered = false;
+  hideDynamicBack(true);
+});
+document.addEventListener('mouseleave', (event) => {
+  if (dynamicPointer && (event.buttons & 1) !== 1) finishDynamicPointer({ pointerId: dynamicPointer.pointerId });
+  dynamicControlsHovered = false;
+  hideDynamicBack();
+});
+
+bridge.onPetDragStopped?.((payload = {}) => {
+  if (!dynamicPointer || String(payload.sessionId) !== String(dynamicDragSessionId)) return;
+  finishDynamicPointer({ pointerId: dynamicPointer.pointerId }, { notifyMain: false });
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (currentMode !== 'dynamic') return;
+  petAnimationController?.setVisibility(!document.hidden);
+});
+
+const handleReducedMotionChange = () => {
+  petAnimationController?.setReducedMotion(reducedMotion.matches);
+};
+if (typeof reducedMotion.addEventListener === 'function') reducedMotion.addEventListener('change', handleReducedMotionChange);
+else reducedMotion.addListener?.(handleReducedMotionChange);
 
 const chartViewport = $('chartViewport');
 const historySlider = $('historySlider');
@@ -491,9 +936,7 @@ $('chartBackButton').addEventListener('click', () => {
   if (latestSnapshot) render(latestSnapshot);
 });
 
-detailPanel.setAttribute('aria-hidden', 'true');
-compactHud.setAttribute('aria-hidden', 'false');
-for (const button of detailPanel.querySelectorAll('button')) button.tabIndex = -1;
+setMode('compact', true);
 
 bridge.getSnapshot().then(render).catch(() => {});
 bridge.onSnapshot(render);

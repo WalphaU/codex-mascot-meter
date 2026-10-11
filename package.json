@@ -1,16 +1,20 @@
 {
-  "name": "codex-mascot-meter",
-  "version": "0.2.6",
+  "name": "codex-mascot-meter-plus",
+  "version": "0.4.0",
   "private": true,
   "license": "MIT",
-  "description": "A transparent Windows desktop mascot that monitors local Codex task progress and usage.",
+  "description": "A transparent Windows Codex meter with compact, detail, and animated desktop-pet modes.",
   "main": "electron/main.cjs",
   "scripts": {
     "start": "electron .",
-    "preview:capture": "electron scripts/capture-preview.cjs",
+    "preview:capture": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/capture-preview.ps1",
+    "test:drag-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-electron-smoke.ps1 -Script scripts/drag-window-smoke.cjs",
+    "test:interaction-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-electron-smoke.ps1 -Script scripts/interaction-smoke.cjs",
+    "test:pet-animation-smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-electron-smoke.ps1 -Script scripts/pet-animation-smoke.cjs",
+    "test:packaged-window": "node scripts/packaged-window-e2e.cjs",
     "slim": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/slim-project.ps1",
     "test": "node --test",
-    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/codex-monitor-v2.cjs && node --check src/renderer-v2.js"
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/codex-monitor-v2.cjs && node --check electron/window-geometry.cjs && node --check src/pet-sequence-adapter.js && node --check src/pet-idle-player.js && node --check src/pet-animation-controller.js && node --check src/pet-animation-clips.js && node --check src/renderer-v2.js"
   },
   "devDependencies": {
     "electron": "^38.1.0"

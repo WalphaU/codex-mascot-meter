@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { CodexMonitor, normalizePath, parseEventsFromText, mergeEventState, planProgress, quotaWindows, observedOutputSpeed, buildProjectHistory, readCodexAppState, belongsToProject, resolveMascotState } = require('../electron/codex-monitor-v2.cjs');
+const { CodexMonitor, normalizePath, parseEventsFromText, mergeEventState, planProgress, quotaWindows, lowestQuotaRemaining, observedOutputSpeed, buildProjectHistory, readCodexAppState, belongsToProject, resolveMascotState } = require('../electron/codex-monitor-v2.cjs');
 
 test('normalizes Windows paths for project matching', () => {
   assert.equal(normalizePath('C:\\Work\\Demo\\'), normalizePath('c:/work/demo'));
@@ -71,10 +71,44 @@ test('preserves cumulative token high-water when a later tail has no usage event
   assert.equal(mergeEventState(previous, next).tokenUsage.total_tokens, 4200);
 });
 
+test('reads the latest Codex model and reasoning effort from applied thread settings', () => {
+  const parsed = parseEventsFromText([
+    { timestamp: '2026-08-21T00:00:01Z', type: 'turn_context', payload: { model: 'gpt-old', effort: 'low' } },
+    { timestamp: '2026-08-21T00:00:02Z', type: 'event_msg', payload: { type: 'thread_settings_applied', thread_settings: { model: 'gpt-new', reasoning_effort: 'xhigh' } } }
+  ].map(JSON.stringify).join('\n'));
+  assert.equal(parsed.model, 'gpt-new');
+  assert.equal(parsed.effort, 'xhigh');
+});
+
+test('retains the most recent valid project model settings when the newest session has none yet', () => {
+  const codexRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-meter-settings-'));
+  const sessionsRoot = path.join(codexRoot, 'sessions', '2026', '08', '21');
+  fs.mkdirSync(sessionsRoot, { recursive: true });
+  const projectPath = 'C:\\Work\\Settings';
+  fs.writeFileSync(path.join(sessionsRoot, 'older.jsonl'), [
+    { timestamp: '2026-08-21T01:00:00Z', type: 'session_meta', payload: { id: 'older', cwd: projectPath, timestamp: '2026-08-21T01:00:00Z' } },
+    { timestamp: '2026-08-21T01:00:01Z', type: 'event_msg', payload: { type: 'thread_settings_applied', thread_settings: { model: 'gpt-remembered', reasoning_effort: 'high' } } }
+  ].map(JSON.stringify).join('\n'));
+  fs.writeFileSync(path.join(sessionsRoot, 'newer.jsonl'), [
+    { timestamp: '2026-08-21T02:00:00Z', type: 'session_meta', payload: { id: 'newer', cwd: projectPath, timestamp: '2026-08-21T02:00:00Z' } },
+    { timestamp: '2026-08-21T02:00:01Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 'new-turn' } }
+  ].map(JSON.stringify).join('\n'));
+  const snapshot = new CodexMonitor({ codexRoot, projectPath }).snapshot();
+  assert.equal(snapshot.task.id, 'newer');
+  assert.equal(snapshot.task.model, 'gpt-remembered');
+  assert.equal(snapshot.task.effort, 'high');
+});
+
 test('converts account rate limits to remaining percentages and window labels', () => {
   assert.deepEqual(quotaWindows({ primary: { used_percent: 18, window_minutes: 10080, resets_at: 10 } })[0], {
     key: 'primary', label: '1周窗口', usedPercent: 18, remainingPercent: 82, windowMinutes: 10080, resetsAt: 10000
   });
+  const windows = quotaWindows({
+    primary: { used_percent: 18, window_minutes: 300, resets_at: 10 },
+    secondary: { used_percent: 91, window_minutes: 10080, resets_at: 20 }
+  });
+  assert.deepEqual(windows.map((window) => window.label), ['5小时窗口', '1周窗口']);
+  assert.equal(lowestQuotaRemaining(windows), 9);
 });
 
 test('computes recent observed output speed and rejects stale samples', () => {
@@ -130,6 +164,7 @@ test('completed mascot expires after 15 seconds and falls back to quota-aware id
   const completedAt = 1_000_000;
   assert.equal(resolveMascotState({ isDone: true, completedAt, isWorking: false, remainingPercent: 10, now: completedAt + 14_999 }), 'done');
   assert.equal(resolveMascotState({ isDone: true, completedAt, isWorking: false, remainingPercent: 10, now: completedAt + 15_000 }), 'low');
+  assert.equal(resolveMascotState({ isDone: true, completedAt, isWorking: false, remainingPercent: 11, now: completedAt + 15_000 }), 'idle');
   assert.equal(resolveMascotState({ isDone: true, completedAt, isWorking: false, remainingPercent: 80, now: completedAt + 15_000 }), 'idle');
 });
 

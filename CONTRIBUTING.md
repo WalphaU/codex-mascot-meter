@@ -1,6 +1,6 @@
 # 参与贡献
 
-感谢你愿意改进 Codex 余额助手。提交代码前，请先确认改动不会改变指标口径或泄露本机 Codex 数据。
+感谢你愿意改进 Codex 余额 Plus。提交代码前，请先确认改动不会改变指标口径或泄露本机 Codex 数据。
 
 ## 开发环境
 
@@ -13,8 +13,9 @@
 npm install
 npm run check
 npm test
-npm run preview:capture
 ```
+
+截图和 Electron 交互检查需要便携版运行时，构建和环境变量设置见 [README](README.md#从源码运行)。
 
 ## 提交流程
 

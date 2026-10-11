@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <title>Codex 余额助手</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+    <title>Codex 余额 Plus</title>
     <link rel="stylesheet" href="./styles-v2.css" />
   </head>
   <body>
@@ -14,7 +15,9 @@
       <div class="aura aura-two" aria-hidden="true"></div>
 
       <div class="compact-toolbar">
-        <span class="compact-drag" aria-label="拖动窗口"><i></i><i></i><i></i></span>
+        <button id="dynamicModeButton" class="round-button dynamic-mode-button" type="button" aria-label="切换到动态桌宠模式" title="动态桌宠">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 9.2c-1.8-1.1-3.5.1-3.5 2 0 1.4 1.1 2.5 2.5 2.5.4 0 .8-.1 1.1-.3M15.8 9.2c1.8-1.1 3.5.1 3.5 2 0 1.4-1.1 2.5-2.5 2.5-.4 0-.8-.1-1.1-.3"></path><path d="M8 9.7C8 7.1 9.7 5 12 5s4 2.1 4 4.7v3.7c0 3-1.7 5.6-4 5.6s-4-2.6-4-5.6Z"></path><path d="M10.1 11.2h.1M13.8 11.2h.1M10.5 14.2c1 .8 2 .8 3 0"></path><path d="m18.4 4 .5 1.2L20 5.7l-1.1.5-.5 1.2-.5-1.2-1.1-.5 1.1-.5Z"></path></svg>
+        </button>
         <div class="compact-toolbar-actions">
           <button id="compactModeButton" class="round-button" type="button" aria-label="切换到详细面板">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="7" height="14" rx="2"></rect><rect x="14" y="5" width="6" height="6" rx="2"></rect><path d="M15 16h5M17.5 13.5v5"></path></svg>
@@ -43,9 +46,64 @@
           <div class="compact-meter-label"><span id="compactTaskLabel">任务进度</span><strong id="compactTaskValue">—</strong></div>
           <div class="bar-track"><span id="compactTaskBar" class="task-bar"></span></div>
         </div>
-        <div class="compact-meter quota-meter">
-          <div class="compact-meter-label"><span id="compactQuotaLabel">用量窗口余额</span><strong id="compactQuotaValue">—</strong></div>
-          <div class="bar-track"><span id="compactQuotaBar" class="quota-bar"></span></div>
+        <div class="compact-meter quota-meter" data-quota-window="five-hour">
+          <div class="compact-meter-label"><span>5小时余额</span><strong id="compactFiveHourQuotaValue">—</strong></div>
+          <div class="bar-track"><span id="compactFiveHourQuotaBar" class="quota-bar"></span></div>
+        </div>
+        <div class="compact-meter quota-meter" data-quota-window="weekly">
+          <div class="compact-meter-label"><span>周余额</span><strong id="compactWeeklyQuotaValue">—</strong></div>
+          <div class="bar-track"><span id="compactWeeklyQuotaBar" class="quota-bar"></span></div>
+        </div>
+      </section>
+
+      <section id="dynamicPetStage" class="dynamic-pet-stage" aria-label="动态 Codex 桌面宠物" aria-hidden="true" inert>
+        <div id="dynamicHoverZone" class="dynamic-hover-zone" aria-hidden="true"></div>
+        <button id="dynamicBackButton" class="dynamic-back-button" type="button" aria-label="切换回默认桌宠面板" title="返回默认面板">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3"></rect><path d="M8 9h8M8 13h5M8 16h3"></path></svg>
+        </button>
+        <div id="dynamicPet" class="dynamic-pet" aria-hidden="true">
+          <span class="dynamic-ground-shadow" aria-hidden="true"></span>
+          <div id="dynamicActor" class="dynamic-actor" data-action="idle" data-pose="idle" data-direction="right">
+            <div id="dynamicIdle" class="dynamic-idle" aria-hidden="true"></div>
+            <div id="dynamicSequence" class="dynamic-sequence" data-active="false" data-active-slot="0" aria-hidden="true">
+              <span class="sequence-frame sequence-frame-a" data-sequence-slot="0"></span>
+              <span class="sequence-frame sequence-frame-b" data-sequence-slot="1"></span>
+            </div>
+            <div id="dragSequence" class="drag-sequence" aria-hidden="true">
+              <img class="drag-frame" style="--drag-frame:0" src="./assets/mascot-drag-frame-01.webp" alt="" draggable="false" />
+              <img class="drag-frame" style="--drag-frame:1" src="./assets/mascot-drag-frame-02.webp" alt="" draggable="false" />
+              <img class="drag-frame" style="--drag-frame:2" src="./assets/mascot-drag-frame-03.webp" alt="" draggable="false" />
+              <img class="drag-frame" style="--drag-frame:3" src="./assets/mascot-drag-frame-04.webp" alt="" draggable="false" />
+              <img class="drag-frame" style="--drag-frame:4" src="./assets/mascot-drag-frame-05.webp" alt="" draggable="false" />
+              <img class="drag-frame" style="--drag-frame:5" src="./assets/mascot-drag-frame-06.webp" alt="" draggable="false" />
+              <img class="drag-frame" style="--drag-frame:6" src="./assets/mascot-drag-frame-07.webp" alt="" draggable="false" />
+              <img class="drag-frame" style="--drag-frame:7" src="./assets/mascot-drag-frame-08.webp" alt="" draggable="false" />
+            </div>
+            <div id="dynamicRig" class="dynamic-rig" data-active-slot="0" aria-hidden="true">
+              <div class="rig-frame rig-frame-a" data-rig-slot="0">
+                <img class="rig-segment rig-head" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+                <img class="rig-segment rig-torso" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+                <img class="rig-segment rig-arm-left" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+                <img class="rig-segment rig-arm-right" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+                <img class="rig-segment rig-legs" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+              </div>
+              <div class="rig-frame rig-frame-b" data-rig-slot="1">
+                <img class="rig-segment rig-head" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+                <img class="rig-segment rig-torso" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+                <img class="rig-segment rig-arm-left" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+                <img class="rig-segment rig-arm-right" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+                <img class="rig-segment rig-legs" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+              </div>
+            </div>
+            <img class="dynamic-character pose-idle" src="./assets/idle/idle-01.png" alt="" draggable="false" />
+            <img class="dynamic-character pose-jump" src="./assets/mascot-action-jump.webp" alt="" draggable="false" />
+            <img class="dynamic-character pose-happy" src="./assets/mascot-action-happy.webp" alt="" draggable="false" />
+            <img class="dynamic-character pose-drag" src="./assets/mascot-action-drag.webp" alt="" draggable="false" />
+            <span class="action-fx" aria-hidden="true"><i class="fx-ring"></i><i class="fx-dot"></i><i class="fx-line"></i><i class="fx-puff"></i></span>
+            <span class="drag-struggle-fx" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <span class="click-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
+          <div id="dynamicHitTarget" class="dynamic-hit-target" role="button" tabindex="-1" aria-label="动态桌宠，单击互动，拖动可移动"></div>
         </div>
       </section>
 
@@ -72,16 +130,23 @@
         </header>
 
         <section class="hero" aria-live="polite">
-          <div class="quota-ring" role="img" aria-labelledby="quotaTitle quotaValue">
-            <svg class="ring-svg" viewBox="0 0 160 160" aria-hidden="true">
-              <circle class="ring-track" cx="80" cy="80" r="68"></circle>
-              <circle id="quotaArc" class="ring-value" cx="80" cy="80" r="68"></circle>
-            </svg>
-            <div class="quota-center">
-              <span id="quotaTitle">窗口余额</span>
-              <strong id="quotaValue">--%</strong>
-              <small id="quotaWindowLabel">等待数据</small>
-            </div>
+          <div class="quota-window-stack" aria-label="Codex 账号额度窗口">
+            <article id="fiveHourQuotaCard" class="quota-window-card" data-known="false">
+              <div class="quota-mini-ring" aria-hidden="true"><strong id="fiveHourQuotaValue">—</strong></div>
+              <div class="quota-window-copy">
+                <strong>5小时余额</strong>
+                <span id="fiveHourQuotaReset">等待额度数据</span>
+                <div class="quota-window-track" aria-hidden="true"><i id="fiveHourQuotaBar"></i></div>
+              </div>
+            </article>
+            <article id="weeklyQuotaCard" class="quota-window-card" data-known="false">
+              <div class="quota-mini-ring" aria-hidden="true"><strong id="weeklyQuotaValue">—</strong></div>
+              <div class="quota-window-copy">
+                <strong>周余额</strong>
+                <span id="weeklyQuotaReset">等待额度数据</span>
+                <div class="quota-window-track" aria-hidden="true"><i id="weeklyQuotaBar"></i></div>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -142,15 +207,11 @@
             <div><span>期间增加</span><strong id="historyAddedValue">—</strong></div>
             <div><span>当前累计</span><strong id="historyCurrentValue">—</strong></div>
           </div>
-          <div class="history-log-section">
-            <div class="history-log-heading"><span>最近项目日志</span><small id="historyLogCount">0 条</small></div>
-            <div id="historyLogList" class="history-log-list"></div>
-          </div>
           <p id="chartSummary" class="sr-only">尚无历史趋势数据。</p>
         </section>
 
         <section class="meta-row">
-          <div><span>重置倒计时</span><strong id="resetCountdown">—</strong></div>
+          <div><span>最近额度重置</span><strong id="resetCountdown">—</strong></div>
           <div><span>数据口径</span><strong class="source-ok"><i aria-hidden="true"></i>账号额度 / 项目累计</strong></div>
         </section>
 
@@ -162,6 +223,11 @@
         </footer>
       </section>
     </main>
+    <script src="./pet-sequence-adapter.js"></script>
+    <script src="./pet-greeting-motion.js"></script>
+    <script src="./pet-idle-player.js"></script>
+    <script src="./pet-animation-controller.js"></script>
+    <script src="./pet-animation-clips.js"></script>
     <script src="./renderer-v2.js"></script>
   </body>
 </html>
